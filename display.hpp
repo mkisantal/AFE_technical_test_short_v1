@@ -1,6 +1,8 @@
 #ifndef DISPLAY_HPP
 #define DISPLAY_HPP
 
+#include <sstream>
+
 #include "bmp.hpp"
 #include "file_io.hpp"
 #include "types.hpp"
@@ -51,12 +53,15 @@ static void display_results(std::ifstream& groundtruth_file,
   image.draw_ray(gt.ship[0], gt.ship[1], shot.firing_angle + gt.ship[4],
                  Color(shot.id), 1, true);
   /* PRINT */
-  std::string image_name = "result_" + std::to_string(iterations) + "_";
-  if (hit) {
-    image_name += "hit";
-  } else {
-    image_name += "miss";
-  }
+  std::stringstream buffer;
+  buffer << std::setfill('0') << std::setw(5) << iterations;
+
+  std::string image_name = "out/result_" + buffer.str(); // + "_";
+  // if (hit) {
+  //   image_name += "hit";
+  // } else {
+  //   image_name += "miss";
+  // }
   image_name += ".bmp";
   image.write(image_name.c_str());
 }
