@@ -11,19 +11,22 @@
 #include "types.hpp"
 #include "display.hpp"
 
-#define INITIALIZE_ONLY // Comment out to run the full set of data
+#include "spacecraft.hpp"
+#include "asteroid.hpp"
+
+//#define INITIALIZE_ONLY // Comment out to run the full set of data
 
 // #include <Eigen/Dense>
 
 int main(int argc, char* argv[]) {
   /* Problem parameters */
-  double thrust = 5;   // (m/s/s) Constant acceleration (when applied)
-  double ang_vel = 1;  // (rad/s) Constant turn rate (when applied)
-  double dt = 0.2;  // (s) Time each control action (thrust or turn) is applied
+  // double thrust = 5;   // (m/s/s) Constant acceleration (when applied)
+  // double ang_vel = 1;  // (rad/s) Constant turn rate (when applied)
+  // double dt = 0.2;  // (s) Time each control action (thrust or turn) is applied
                     // for
   double bullet_speed = 30;  // (m/s) Speed of the bullet, relative to the ship
                              // at the time the bullet was shot
-  int num_pixels = 360;      // (px) Number of pixels in the camera
+  // int num_pixels = 360;      // (px) Number of pixels in the camera
   size_t number_of_asteroids = 7;  // Total number of asteroids
 
   if (argc < 3) {
@@ -68,34 +71,48 @@ int main(int argc, char* argv[]) {
   size_t iterations = 0;
 
 
-#ifdef INITIALIZE_ONLY
-  /* Use this case to only run the first few steps for initialization */
-  size_t initialization_iterations; // Change to steps required for your initialization procedure
-  while (iterations < initialization_iterations) {
-#else
-  /* Use this case to run the full dataset */
+  // INITIALIZATION
+  get_next_sensor_data(destroyed_ids, measure_file, measurement_time_s, sun_angle_px, sensor_data);
+  // Create ship
+  Spacecraft spacecraft(sun_angle_px);
+
+  // Create asteroids
+  std::vector<Asteroid> asteroids;
+  for (const auto& detection : sensor_data){
+    Asteroid asteroid(detection, sun_angle_px);
+    asteroids.push_back(asteroid);
+  }
+
+
+  // RUN
   // Loop through all sensor data until scenario is over, or asteroids are
   // destroyed
   while (destroyed_ids.size() < number_of_asteroids &&
          get_next_sensor_data(destroyed_ids, measure_file, measurement_time_s,
-                              sun_angle_px, sensor_data)) {
-#endif
+                              sun_angle_px, sensor_data) ) { //&& iterations<40
 
     ++iterations;
 
-    // Fill in this vector with relative positions and velocities of the
-    // asteroids, in the coordinate frame of the space ship.
-    // Coordinate system:
-    // x-axis: forward of ship
-    // y-axis: left of ship
-    // position and velocity stored as (x, y, vx, vy) relative to the ship
+    // Propagate
+    
     std::vector<std::array<double, 4>> asteroid_posvel(sensor_data.size());
 
+    Eigen::MatrixXd ss_state = spacecraft.Propagate(sun_angle_px, false);
+    for (size_t i=0; i<asteroids.size(); i++){
+      asteroids[i].Propagate(sensor_data[i], sun_angle_px, ss_state, true);
+    }
+
+    if (iterations%10 == 0){
+      std::cout << iterations << std::endl;
+    }
+
+
     /* UPDATE THE LOCATIONS OF ASTEROID_POSVEL */
-    //    your_update_function(measurement_time_s, sensor_data, sun_angle_px, asteroid_posvel);
+    for (size_t i=0; i<asteroids.size(); i++){
+      asteroids[i].WritePosvel(asteroid_posvel[i], ss_state);
+    }
 
     Shot shot = Shot(sensor_data.back().id, bullet_speed, asteroid_posvel.back());
-
 
     // Check for success
     size_t hit_id;
@@ -103,16 +120,19 @@ int main(int argc, char* argv[]) {
     bool hit = check_shot(shot, destroyed_ids, verify_file, hit_id, shot_lim);
 
     /* YOU MAY UPDATE YOUR ALGORITHM WITH THE HIT */
-    // your_hit_function(shot, hit)
-
-    // Print results
-    if (hit) {
-      std::cout << "HIT!! You destroyed asteroid: " << hit_id << std::endl;
-    } else {
-    std::cout << "You missed asteroid: " << shot.id << std::endl;
+    if (hit){
+      std::cout << "💥 Asteroid  " << hit_id << " destroyed!" << std::endl;
+      for (size_t i=0; i<asteroids.size(); i++){
+        if (hit_id == asteroids[i].id){
+          asteroids.erase(asteroids.begin() + i);
+          break;
+        }
+      }
     }
 
     // Plot results
+
+
     if (plot_results) {
       display_results(groundtruth_file, asteroid_posvel, shot, shot_lim, hit, iterations);
     }

@@ -10,6 +10,17 @@ struct SensorData {
   double range;  // (m) [0, inf) Range to the asteroid
   int bearing;  // (pixel) [0, 359], with 0 corresponding to forward, increasing
                 // counter clockwise
+
+  // method for calculating position in ship-fixed inertial frame (x pointing the sun)
+  std::array<double, 2> getXY(int sun_position){
+
+    double alpha = (double)(bearing - sun_position) * M_PI / 180.0;
+    std::array<double, 2>  xy;
+    xy[0] = range * cos(alpha);
+    xy[1] = range * sin(alpha);
+    return xy;
+  }
+
 };
 
 // Storage struct for a shot
