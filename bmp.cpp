@@ -1,6 +1,8 @@
 #include "bmp.hpp"
 #include "wrap_to_pi.hpp"
 
+#include <cmath>
+
 BMP::BMP(int32_t width, int32_t height, bool has_alpha) {
   if (width <= 0 || height <= 0) {
     throw std::runtime_error(
